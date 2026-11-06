@@ -24,6 +24,7 @@ final class AppModel {
     private static let islandRightSlotDefaultsKey = "appearance.island.v6.rightSlot"
     private static let islandCenterLabelDefaultsKey = "appearance.island.v6.centerLabel"
     private static let showCodexUsageDefaultsKey = "app.showCodexUsage"
+    private static let showWorkbuddyCreditsDefaultsKey = "app.showWorkbuddyCredits"
     private static let completionReplyEnabledDefaultsKey = "feature.completionReply.enabled"
     private static let suppressFrontmostNotificationsDefaultsKey = "app.suppressFrontmostNotifications"
     private static let legacyIslandSessionStateIndicatorDefaultsKey = "appearance.island.v8.stateIndicator"
@@ -93,6 +94,7 @@ final class AppModel {
     var claudeHookStatus: ClaudeHookInstallationStatus? { hooks.claudeHookStatus }
     var claudeStatusLineStatus: ClaudeStatusLineInstallationStatus? { hooks.claudeStatusLineStatus }
     var claudeUsageSnapshot: ClaudeUsageSnapshot? { hooks.claudeUsageSnapshot }
+    var workbuddyCreditsSnapshot: WorkbuddyCreditsSnapshot? { hooks.workbuddyCreditsSnapshot }
     var codexUsageSnapshot: CodexUsageSnapshot? { hooks.codexUsageSnapshot }
     var hooksBinaryURL: URL? { hooks.hooksBinaryURL }
     var codexHooksInstalled: Bool { hooks.codexHooksInstalled }
@@ -300,6 +302,18 @@ final class AppModel {
         didSet {
             guard hasFinishedInit, showCodexUsage != oldValue else { return }
             UserDefaults.standard.set(showCodexUsage, forKey: Self.showCodexUsageDefaultsKey)
+        }
+    }
+    var showWorkbuddyCredits: Bool = false {
+        didSet {
+            guard hasFinishedInit, showWorkbuddyCredits != oldValue else { return }
+            UserDefaults.standard.set(showWorkbuddyCredits, forKey: Self.showWorkbuddyCreditsDefaultsKey)
+            if showWorkbuddyCredits {
+                hooks.startWorkbuddyCreditsMonitoringIfNeeded(password: Self.workbuddyKeychainPassword())
+            } else {
+                hooks.stopWorkbuddyCreditsMonitoring()
+                WorkbuddyCreditsCache.remove()
+            }
         }
     }
     var completionReplyEnabled: Bool = false {
@@ -586,6 +600,23 @@ final class AppModel {
     @ObservationIgnored
     private var notificationPresentationTask: Task<Void, Never>?
 
+    /// Reads the workbuddy-manager admin password from the login keychain
+    /// (`security add-generic-password -a opal -s workbuddy-manager-admin -w`).
+    /// Returns nil when absent so the credits monitor stays idle instead of
+    /// erroring on every tick.
+    private static func workbuddyKeychainPassword() -> String? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrAccount as String: "opal",
+            kSecAttrService as String: "workbuddy-manager-admin",
+            kSecReturnData as String: true,
+        ]
+        var result: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        guard status == errSecSuccess, let data = result as? Data else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
     private static func appearanceDefaultsKey(_ profile: IslandAppearanceDisplayProfile, _ name: String) -> String {
         "appearance.island.v8.\(profile.rawValue).\(name)"
     }
@@ -661,6 +692,7 @@ final class AppModel {
             )
         }
         completionReplyEnabled = UserDefaults.standard.bool(forKey: Self.completionReplyEnabledDefaultsKey)
+        showWorkbuddyCredits = UserDefaults.standard.bool(forKey: Self.showWorkbuddyCreditsDefaultsKey)
         launchAtLoginEnabled = LaunchAtLoginService.shared.isEnabled
         appearanceSettingsProfile = IslandAppearanceDisplayProfile(
             rawValue: UserDefaults.standard.string(forKey: Self.appearanceProfileSettingsDefaultsKey) ?? ""
@@ -1149,6 +1181,9 @@ final class AppModel {
             if showCodexUsage {
                 hooks.refreshCodexUsageState()
                 hooks.startCodexUsageMonitoringIfNeeded()
+            }
+            if showWorkbuddyCredits {
+                hooks.startWorkbuddyCreditsMonitoringIfNeeded(password: Self.workbuddyKeychainPassword())
             }
             updateChecker.startIfNeeded()
 

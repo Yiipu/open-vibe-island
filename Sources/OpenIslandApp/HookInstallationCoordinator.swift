@@ -36,6 +36,7 @@ final class HookInstallationCoordinator {
     var claudeStatusLineStatus: ClaudeStatusLineInstallationStatus?
     var claudeUsageSnapshot: ClaudeUsageSnapshot?
     var codexUsageSnapshot: CodexUsageSnapshot?
+    var workbuddyCreditsSnapshot: WorkbuddyCreditsSnapshot?
     var hooksBinaryURL: URL?
     var isCodexSetupBusy = false
     var isClaudeHookSetupBusy = false
@@ -122,6 +123,8 @@ final class HookInstallationCoordinator {
 
     @ObservationIgnored
     private var codexUsageMonitorTask: Task<Void, Never>?
+    @ObservationIgnored
+    private var workbuddyCreditsMonitorTask: Task<Void, Never>?
 
     @ObservationIgnored
     private var relativeTimestampFormatter: RelativeDateTimeFormatter {
@@ -1478,6 +1481,42 @@ final class HookInstallationCoordinator {
                 try? await Task.sleep(for: .seconds(120))
             }
         }
+    }
+
+    func refreshWorkbuddyCredits(password: String?) {
+        guard let password, password.isEmpty == false else { return }
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                let configuration = WorkbuddyCreditsFetcher.Configuration(
+                    baseURL: URL(string: "http://172.27.0.2:7864")!
+                )
+                let snapshot = try await WorkbuddyCreditsFetcher.fetch(
+                    configuration: configuration,
+                    password: password
+                )
+                self.workbuddyCreditsSnapshot = snapshot
+            } catch {
+                self.workbuddyCreditsSnapshot = WorkbuddyCreditsCache.load()
+            }
+        }
+    }
+
+    func startWorkbuddyCreditsMonitoringIfNeeded(password: String?) {
+        guard workbuddyCreditsMonitorTask == nil else { return }
+
+        workbuddyCreditsSnapshot = WorkbuddyCreditsCache.load()
+        workbuddyCreditsMonitorTask = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                self?.refreshWorkbuddyCredits(password: password)
+                try? await Task.sleep(for: .seconds(120))
+            }
+        }
+    }
+
+    func stopWorkbuddyCreditsMonitoring() {
+        workbuddyCreditsMonitorTask?.cancel()
+        workbuddyCreditsMonitorTask = nil
     }
 
     // MARK: - Internal: readClaudeUsageState

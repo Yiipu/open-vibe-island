@@ -977,6 +977,26 @@ struct IslandPanelView: View {
             }
         }
 
+        if model.showWorkbuddyCredits,
+           let snapshot = model.workbuddyCreditsSnapshot,
+           snapshot.isEmpty == false {
+            providers.append(
+                UsageProviderPresentation(
+                    id: "workbuddy",
+                    title: "Workbuddy",
+                    windows: [
+                        UsageWindowPresentation(
+                            id: "workbuddy-credits",
+                            label: "credits",
+                            usedPercentage: 0,
+                            resetsAt: nil,
+                            detailOverride: Self.formatWorkbuddyCredits(snapshot.totalCredits)
+                        )
+                    ]
+                )
+            )
+        }
+
         return providers
     }
 
@@ -1098,9 +1118,15 @@ struct IslandPanelView: View {
                         .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
                         .foregroundStyle(.white.opacity(0.42))
 
-                    Text("\(window.roundedUsedPercentage)%")
-                        .font(.system(size: 11.5, weight: .bold, design: .monospaced))
-                        .foregroundStyle(usageColor(for: window.usedPercentage))
+                    if let detail = window.detailOverride {
+                        Text(detail)
+                            .font(.system(size: 11.5, weight: .bold, design: .monospaced))
+                            .foregroundStyle(.white.opacity(0.92))
+                    } else {
+                        Text("\(window.roundedUsedPercentage)%")
+                            .font(.system(size: 11.5, weight: .bold, design: .monospaced))
+                            .foregroundStyle(usageColor(for: window.usedPercentage))
+                    }
 
                     if layout.showsRemaining,
                        let resetsAt = window.resetsAt,
@@ -1122,9 +1148,20 @@ struct IslandPanelView: View {
         .help(usageHelpText(for: provider))
     }
 
+    /// Formats the pooled-credits total compactly so the chip stays narrow:
+    /// values under 10k keep full precision, larger ones abbreviate (e.g. 12.1k).
+    private static func formatWorkbuddyCredits(_ credits: Int) -> String {
+        if credits < 10_000 {
+            return String(credits)
+        }
+        let value = Double(credits) / 1_000
+        let text = value >= 100 ? String(Int(value.rounded())) : String(format: "%.1f", value)
+        return "\(text)k"
+    }
+
     private func usageHelpText(for provider: UsageProviderPresentation) -> String {
         provider.windows.map { window in
-            var parts = ["\(window.label) \(window.roundedUsedPercentage)%"]
+            var parts = [window.detailOverride.map { "\(window.label) \($0)" } ?? "\(window.label) \(window.roundedUsedPercentage)%"]
             if let resetsAt = window.resetsAt,
                let remaining = remainingDurationString(until: resetsAt) {
                 parts.append(remaining)
@@ -1215,6 +1252,8 @@ private struct UsageProviderPresentation: Identifiable {
             "Cl"
         case "codex":
             "Cx"
+        case "workbuddy":
+            "Wb"
         default:
             String(title.prefix(2))
         }
@@ -1226,6 +1265,23 @@ private struct UsageWindowPresentation: Identifiable {
     let label: String
     let usedPercentage: Double
     let resetsAt: Date?
+    /// Set when the chip shows a value that is not a percentage (e.g. the
+    /// workbuddy pooled-credits total); replaces the percent rendering.
+    var detailOverride: String?
+
+    init(
+        id: String,
+        label: String,
+        usedPercentage: Double,
+        resetsAt: Date?,
+        detailOverride: String? = nil
+    ) {
+        self.id = id
+        self.label = label
+        self.usedPercentage = usedPercentage
+        self.resetsAt = resetsAt
+        self.detailOverride = detailOverride
+    }
 
     var roundedUsedPercentage: Int {
         Int(usedPercentage.rounded())

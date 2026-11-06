@@ -739,6 +739,11 @@ struct SetupSettingsPane: View {
                     get: { model.showCodexUsage },
                     set: { model.showCodexUsage = $0 }
                 ))
+
+                Toggle(lang.t("settings.general.showWorkbuddyCredits"), isOn: Binding(
+                    get: { model.showWorkbuddyCredits },
+                    set: { model.showWorkbuddyCredits = $0 }
+                ))
             } header: {
                 HStack(spacing: 4) {
                     Text(lang.t("setup.section.usage"))
