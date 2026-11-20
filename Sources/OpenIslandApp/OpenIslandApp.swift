@@ -7,6 +7,14 @@ final class OpenIslandAppDelegate: NSObject, NSApplicationDelegate {
     private let harnessLaunchConfiguration = HarnessLaunchConfiguration()
     private let launchedAt = Date()
     private lazy var harnessRuntimeMonitor = HarnessRuntimeMonitor(launchedAt: launchedAt)
+    /// Holds a user-interactive activity for the process lifetime so macOS
+    /// App Nap cannot defer the notch overlay's hover timers and global event
+    /// monitors. Intermittent ~10s hover-open delays after idle were traced
+    /// to the app being napped while still visible in the notch.
+    private let appNapActivity = ProcessInfo.processInfo.beginActivity(
+        options: .userInteractive,
+        reason: "Open Island notch overlay must stay event-responsive"
+    )
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         ProcessInfo.processInfo.disableAutomaticTermination(
