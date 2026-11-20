@@ -73,7 +73,7 @@ extension AgentSession {
 
 // MARK: - Animations
 
-private let openAnimation = Animation.spring(response: 0.28, dampingFraction: 0.85, blendDuration: 0)
+private let openAnimation = Animation.spring(response: 0.42, dampingFraction: 0.8, blendDuration: 0)
 private let closeAnimation = Animation.smooth(duration: 0.3)
 private let popAnimation = Animation.spring(response: 0.3, dampingFraction: 0.5)
 private let openedSurfaceUnmountDelay: TimeInterval = 0.36
