@@ -911,6 +911,23 @@ struct IslandPanelView: View {
             compactUsageSummaryView(providers, layout: .init(usesShortTitle: true, showsAllWindows: true, showsRemaining: false))
             compactUsageSummaryView(providers, layout: .init(usesShortTitle: false, showsAllWindows: false, showsRemaining: false))
             compactUsageSummaryView(providers, layout: .init(usesShortTitle: true, showsAllWindows: false, showsRemaining: false))
+            // L7: short title + value only (no window labels, tight padding).
+            compactUsageSummaryView(providers, layout: .init(
+                usesShortTitle: true,
+                showsAllWindows: false,
+                showsRemaining: false,
+                showsWindowLabels: false,
+                tightPadding: true
+            ))
+            // L8: status dot instead of percentage; absolute values stay.
+            compactUsageSummaryView(providers, layout: .init(
+                usesShortTitle: true,
+                showsAllWindows: false,
+                showsRemaining: false,
+                showsWindowLabels: false,
+                showsStatusDot: true,
+                tightPadding: true
+            ))
         }
     }
 
@@ -979,6 +996,26 @@ struct IslandPanelView: View {
                     )
                 )
             }
+        }
+
+        if model.showWorkbuddyCredits,
+           let snapshot = model.workbuddyCreditsSnapshot,
+           snapshot.isEmpty == false {
+            providers.append(
+                UsageProviderPresentation(
+                    id: "workbuddy",
+                    title: "Workbuddy",
+                    windows: [
+                        UsageWindowPresentation(
+                            id: "workbuddy-credits",
+                            label: "credits",
+                            usedPercentage: 0,
+                            resetsAt: nil,
+                            detailOverride: Self.formatWorkbuddyCredits(snapshot.totalCredits)
+                        )
+                    ]
+                )
+            )
         }
 
         return providers
@@ -1090,6 +1127,9 @@ struct IslandPanelView: View {
         let windows = layout.showsAllWindows
             ? provider.windows
             : (provider.peakWindow.map { [$0] } ?? [])
+        // Absolute-value providers (workbuddy credits) render as a neutral
+        // ghost badge: no state colors, no window label, fainter container.
+        let isGhost = windows.contains { $0.detailOverride != nil }
 
         return HStack(spacing: 6) {
             Text(layout.usesShortTitle ? provider.shortTitle : provider.title)
@@ -1098,13 +1138,25 @@ struct IslandPanelView: View {
 
             ForEach(windows) { window in
                 HStack(spacing: 4) {
-                    Text(window.label)
-                        .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
-                        .foregroundStyle(.white.opacity(0.42))
+                    if !isGhost, layout.showsWindowLabels {
+                        Text(window.label)
+                            .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(.white.opacity(0.42))
+                    }
 
-                    Text("\(window.roundedUsedPercentage)%")
-                        .font(.system(size: 11.5, weight: .bold, design: .monospaced))
-                        .foregroundStyle(usageColor(for: window.usedPercentage))
+                    if let detail = window.detailOverride {
+                        Text(detail)
+                            .font(.system(size: 11.5, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(.white.opacity(0.75))
+                    } else if layout.showsStatusDot {
+                        Circle()
+                            .fill(usageColor(for: window.usedPercentage))
+                            .frame(width: 6, height: 6)
+                    } else {
+                        Text("\(window.roundedUsedPercentage)%")
+                            .font(.system(size: 11.5, weight: .bold, design: .monospaced))
+                            .foregroundStyle(usageColor(for: window.usedPercentage))
+                    }
 
                     if layout.showsRemaining,
                        let resetsAt = window.resetsAt,
@@ -1116,19 +1168,30 @@ struct IslandPanelView: View {
                 }
             }
         }
-        .padding(.horizontal, 8)
+        .padding(.horizontal, layout.tightPadding ? 6 : 8)
         .padding(.vertical, 4)
-        .background(.white.opacity(0.055), in: Capsule())
+        .background(.white.opacity(isGhost ? 0.02 : 0.055), in: Capsule())
         .overlay(
             Capsule()
-                .strokeBorder(.white.opacity(0.06), lineWidth: 1)
+                .strokeBorder(.white.opacity(isGhost ? 0.08 : 0.06), lineWidth: 1)
         )
         .help(usageHelpText(for: provider))
     }
 
+    /// Formats the pooled-credits total compactly so the chip stays narrow:
+    /// values under 10k keep full precision, larger ones abbreviate (e.g. 12.1k).
+    private static func formatWorkbuddyCredits(_ credits: Int) -> String {
+        if credits < 10_000 {
+            return String(credits)
+        }
+        let value = Double(credits) / 1_000
+        let text = value >= 100 ? String(Int(value.rounded())) : String(format: "%.1f", value)
+        return "\(text)k"
+    }
+
     private func usageHelpText(for provider: UsageProviderPresentation) -> String {
         provider.windows.map { window in
-            var parts = ["\(window.label) \(window.roundedUsedPercentage)%"]
+            var parts = [window.detailOverride.map { "\(window.label) \($0)" } ?? "\(window.label) \(window.roundedUsedPercentage)%"]
             if let resetsAt = window.resetsAt,
                let remaining = remainingDurationString(until: resetsAt) {
                 parts.append(remaining)
@@ -1188,6 +1251,9 @@ private struct UsageChipLayout {
     let usesShortTitle: Bool
     let showsAllWindows: Bool
     let showsRemaining: Bool
+    var showsWindowLabels: Bool = true
+    var showsStatusDot: Bool = false
+    var tightPadding: Bool = false
 }
 
 private struct UsageProviderPresentation: Identifiable {
@@ -1219,6 +1285,8 @@ private struct UsageProviderPresentation: Identifiable {
             "Cl"
         case "codex":
             "Cx"
+        case "workbuddy":
+            "Wb"
         default:
             String(title.prefix(2))
         }
@@ -1230,6 +1298,23 @@ private struct UsageWindowPresentation: Identifiable {
     let label: String
     let usedPercentage: Double
     let resetsAt: Date?
+    /// Set when the chip shows a value that is not a percentage (e.g. the
+    /// workbuddy pooled-credits total); replaces the percent rendering.
+    var detailOverride: String?
+
+    init(
+        id: String,
+        label: String,
+        usedPercentage: Double,
+        resetsAt: Date?,
+        detailOverride: String? = nil
+    ) {
+        self.id = id
+        self.label = label
+        self.usedPercentage = usedPercentage
+        self.resetsAt = resetsAt
+        self.detailOverride = detailOverride
+    }
 
     var roundedUsedPercentage: Int {
         Int(usedPercentage.rounded())
