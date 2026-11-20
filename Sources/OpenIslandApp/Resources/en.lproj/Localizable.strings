@@ -29,6 +29,9 @@
 "settings.general.suppressFrontmostNotifications" = "Suppress notifications for focused sessions";
 "settings.general.showCodexUsage" = "Show Codex usage";
 "settings.general.showWorkbuddyCredits" = "Show Workbuddy credits";
+"settings.general.showOpenCodeQuota" = "Show OpenCode quota";
+"usage.opencode.window.rolling" = "5h";
+"usage.opencode.window.weekly" = "7d";
 "settings.general.completionReply" = "Reply from completion card";
 "settings.general.cliHooks" = "CLI Hooks";
 "settings.general.activated" = "Activated";

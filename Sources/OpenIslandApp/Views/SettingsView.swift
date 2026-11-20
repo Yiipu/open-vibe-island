@@ -745,6 +745,11 @@ struct SetupSettingsPane: View {
                     get: { model.showWorkbuddyCredits },
                     set: { model.showWorkbuddyCredits = $0 }
                 ))
+
+                Toggle(lang.t("settings.general.showOpenCodeQuota"), isOn: Binding(
+                    get: { model.showOpenCodeQuota },
+                    set: { model.showOpenCodeQuota = $0 }
+                ))
             } header: {
                 HStack(spacing: 4) {
                     Text(lang.t("setup.section.usage"))

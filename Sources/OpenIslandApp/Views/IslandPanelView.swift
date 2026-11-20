@@ -1016,6 +1016,29 @@ struct IslandPanelView: View {
                     ]
                 )
             )
+
+        }
+        if model.showOpenCodeQuota,
+           let snapshot = model.openCodeQuotaSnapshot,
+           snapshot.isEmpty == false {
+            let windows = snapshot.windows.map { window in
+                UsageWindowPresentation(
+                    id: "opencode-\(window.key)",
+                    label: lang.t("usage.opencode.window.\(window.key)"),
+                    usedPercentage: window.usedPercentage,
+                    resetsAt: window.resetsAt
+                )
+            }
+
+            if windows.isEmpty == false {
+                providers.append(
+                    UsageProviderPresentation(
+                        id: "opencode",
+                        title: "OpenCode",
+                        windows: windows
+                    )
+                )
+            }
         }
 
         return providers
@@ -1287,6 +1310,8 @@ private struct UsageProviderPresentation: Identifiable {
             "Cx"
         case "workbuddy":
             "Wb"
+        case "opencode":
+            "Oc"
         default:
             String(title.prefix(2))
         }

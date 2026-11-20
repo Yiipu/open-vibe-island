@@ -29,6 +29,9 @@
 "settings.general.suppressFrontmostNotifications" = "前台会话不弹出通知";
 "settings.general.showCodexUsage" = "显示 Codex 用量";
 "settings.general.showWorkbuddyCredits" = "显示 Workbuddy 积分";
+"settings.general.showOpenCodeQuota" = "显示 OpenCode 额度";
+"usage.opencode.window.rolling" = "5h";
+"usage.opencode.window.weekly" = "7d";
 "settings.general.completionReply" = "在完成卡片中回复";
 "settings.general.cliHooks" = "CLI Hooks";
 "settings.general.activated" = "已激活";

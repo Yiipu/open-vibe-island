@@ -37,6 +37,7 @@ final class HookInstallationCoordinator {
     var claudeUsageSnapshot: ClaudeUsageSnapshot?
     var codexUsageSnapshot: CodexUsageSnapshot?
     var workbuddyCreditsSnapshot: WorkbuddyCreditsSnapshot?
+    var openCodeQuotaSnapshot: OpenCodeQuotaSnapshot?
     var hooksBinaryURL: URL?
     var isCodexSetupBusy = false
     var isClaudeHookSetupBusy = false
@@ -125,6 +126,8 @@ final class HookInstallationCoordinator {
     private var codexUsageMonitorTask: Task<Void, Never>?
     @ObservationIgnored
     private var workbuddyCreditsMonitorTask: Task<Void, Never>?
+    @ObservationIgnored
+    private var openCodeQuotaMonitorTask: Task<Void, Never>?
 
     @ObservationIgnored
     private var relativeTimestampFormatter: RelativeDateTimeFormatter {
@@ -1524,6 +1527,37 @@ final class HookInstallationCoordinator {
     func stopWorkbuddyCreditsMonitoring() {
         workbuddyCreditsMonitorTask?.cancel()
         workbuddyCreditsMonitorTask = nil
+    }
+
+    func refreshOpenCodeQuota() {
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                let snapshot = try await OpenCodeQuotaFetcher.fetch(
+                    apiKey: OpenCodeAuthKey.read()
+                )
+                self.openCodeQuotaSnapshot = snapshot
+            } catch {
+                self.openCodeQuotaSnapshot = OpenCodeQuotaCache.load()
+            }
+        }
+    }
+
+    func startOpenCodeQuotaMonitoringIfNeeded() {
+        guard openCodeQuotaMonitorTask == nil else { return }
+
+        openCodeQuotaSnapshot = OpenCodeQuotaCache.load()
+        openCodeQuotaMonitorTask = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                self?.refreshOpenCodeQuota()
+                try? await Task.sleep(for: .seconds(120))
+            }
+        }
+    }
+
+    func stopOpenCodeQuotaMonitoring() {
+        openCodeQuotaMonitorTask?.cancel()
+        openCodeQuotaMonitorTask = nil
     }
 
     // MARK: - Internal: readClaudeUsageState

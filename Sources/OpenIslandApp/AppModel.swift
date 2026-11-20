@@ -25,6 +25,7 @@ final class AppModel {
     private static let islandCenterLabelDefaultsKey = "appearance.island.v6.centerLabel"
     private static let showCodexUsageDefaultsKey = "app.showCodexUsage"
     private static let showWorkbuddyCreditsDefaultsKey = "app.showWorkbuddyCredits"
+    private static let showOpenCodeQuotaDefaultsKey = "app.showOpenCodeQuota"
     private static let completionReplyEnabledDefaultsKey = "feature.completionReply.enabled"
     private static let suppressFrontmostNotificationsDefaultsKey = "app.suppressFrontmostNotifications"
     private static let legacyIslandSessionStateIndicatorDefaultsKey = "appearance.island.v8.stateIndicator"
@@ -95,6 +96,7 @@ final class AppModel {
     var claudeStatusLineStatus: ClaudeStatusLineInstallationStatus? { hooks.claudeStatusLineStatus }
     var claudeUsageSnapshot: ClaudeUsageSnapshot? { hooks.claudeUsageSnapshot }
     var workbuddyCreditsSnapshot: WorkbuddyCreditsSnapshot? { hooks.workbuddyCreditsSnapshot }
+    var openCodeQuotaSnapshot: OpenCodeQuotaSnapshot? { hooks.openCodeQuotaSnapshot }
     var codexUsageSnapshot: CodexUsageSnapshot? { hooks.codexUsageSnapshot }
     var hooksBinaryURL: URL? { hooks.hooksBinaryURL }
     var codexHooksInstalled: Bool { hooks.codexHooksInstalled }
@@ -314,6 +316,18 @@ final class AppModel {
             } else {
                 hooks.stopWorkbuddyCreditsMonitoring()
                 WorkbuddyCreditsCache.remove()
+            }
+        }
+    }
+    var showOpenCodeQuota: Bool = false {
+        didSet {
+            guard hasFinishedInit, showOpenCodeQuota != oldValue else { return }
+            UserDefaults.standard.set(showOpenCodeQuota, forKey: Self.showOpenCodeQuotaDefaultsKey)
+            if showOpenCodeQuota {
+                hooks.startOpenCodeQuotaMonitoringIfNeeded()
+            } else {
+                hooks.stopOpenCodeQuotaMonitoring()
+                OpenCodeQuotaCache.remove()
             }
         }
     }
@@ -704,6 +718,7 @@ final class AppModel {
         }
         completionReplyEnabled = UserDefaults.standard.bool(forKey: Self.completionReplyEnabledDefaultsKey)
         showWorkbuddyCredits = UserDefaults.standard.bool(forKey: Self.showWorkbuddyCreditsDefaultsKey)
+        showOpenCodeQuota = UserDefaults.standard.bool(forKey: Self.showOpenCodeQuotaDefaultsKey)
         launchAtLoginEnabled = LaunchAtLoginService.shared.isEnabled
         appearanceSettingsProfile = IslandAppearanceDisplayProfile(
             rawValue: UserDefaults.standard.string(forKey: Self.appearanceProfileSettingsDefaultsKey) ?? ""
@@ -1195,6 +1210,9 @@ final class AppModel {
             }
             if showWorkbuddyCredits {
                 hooks.startWorkbuddyCreditsMonitoringIfNeeded(password: Self.workbuddyKeychainPassword())
+            }
+            if showOpenCodeQuota {
+                hooks.startOpenCodeQuotaMonitoringIfNeeded()
             }
             updateChecker.startIfNeeded()
 
