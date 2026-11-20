@@ -896,21 +896,42 @@ final class NotchEventMonitors {
         let throttleInterval: TimeInterval = 0.05
 
         nonisolated(unsafe) var sharedLastMove: TimeInterval = 0
+        // Trailing-edge dispatch: the final cursor position must always be
+        // hit-tested even when its event is throttled away, otherwise a fast
+        // single motion that stops inside the hover strip never opens.
+        nonisolated(unsafe) var pendingLocation: NSPoint?
+        nonisolated(unsafe) var trailingScheduled = false
 
-        globalMoveMonitor = NSEvent.addGlobalMonitorForEvents(matching: .mouseMoved) { event in
+        let handleThrottledMove: @Sendable () -> Void = {
             let now = ProcessInfo.processInfo.systemUptime
-            guard now - sharedLastMove >= throttleInterval else { return }
-            sharedLastMove = now
             let location = NSEvent.mouseLocation
-            Task { @MainActor in mouseMoveHandler(location) }
+            if now - sharedLastMove >= throttleInterval {
+                sharedLastMove = now
+                pendingLocation = nil
+                Task { @MainActor in mouseMoveHandler(location) }
+            } else {
+                pendingLocation = location
+                guard !trailingScheduled else { return }
+                trailingScheduled = true
+                let fireAt = sharedLastMove + throttleInterval
+                DispatchQueue.main.asyncAfter(
+                    deadline: .now() + max(0, fireAt - ProcessInfo.processInfo.systemUptime)
+                ) {
+                    trailingScheduled = false
+                    guard let pending = pendingLocation else { return }
+                    pendingLocation = nil
+                    sharedLastMove = ProcessInfo.processInfo.systemUptime
+                    Task { @MainActor in mouseMoveHandler(pending) }
+                }
+            }
+        }
+
+        globalMoveMonitor = NSEvent.addGlobalMonitorForEvents(matching: .mouseMoved) { _ in
+            handleThrottledMove()
         }
 
         localMoveMonitor = NSEvent.addLocalMonitorForEvents(matching: .mouseMoved) { event in
-            let now = ProcessInfo.processInfo.systemUptime
-            guard now - sharedLastMove >= throttleInterval else { return event }
-            sharedLastMove = now
-            let location = NSEvent.mouseLocation
-            Task { @MainActor in mouseMoveHandler(location) }
+            handleThrottledMove()
             return event
         }
 
