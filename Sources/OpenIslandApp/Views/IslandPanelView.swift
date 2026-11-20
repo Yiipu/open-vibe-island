@@ -369,8 +369,14 @@ struct IslandPanelView: View {
         if usesNotchAwareOpenedHeader {
             GeometryReader { geometry in
                 let providers = openedUsageProviders
-                let providerGroups = splitUsageProviders(providers)
                 let metrics = openedHeaderMetrics(for: geometry.size.width)
+                let splitGroups = splitUsageProviders(providers)
+                // When the right lane is too narrow to render, keep every chip
+                // in the left lane so the ViewThatFits ladder can compact them
+                // instead of silently dropping the right-lane chips.
+                let providerGroups = metrics.rightUsageWidth > 0
+                    ? splitGroups
+                    : (left: providers, right: [])
 
                 HStack(spacing: 0) {
                     usageLaneView(providerGroups.left, alignment: .leading)
